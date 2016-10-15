@@ -1,9 +1,9 @@
 #include <FS.h>
-#include "DoubleResetDetector.h"
+#include <DoubleResetDetector.h>
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>        //https://github.com/knolleary/pubsubclient
 
-#define OLED_I2C_ADDRESS 0x3C
+#define OLED_I2C_ADDRESS 0x3D
 #include <Wire.h>
 #include "SSD1306Ascii.h"
 #include "SSD1306AsciiWire.h"
@@ -38,7 +38,7 @@ WiFiManagerParameter *custom_mqtt_server;
 WiFiManagerParameter *custom_mqtt_port;
 WiFiManagerParameter *custom_subscription;
 
-DoubleResetDetector drd(10);
+DoubleResetDetector drd(10,0);
 bool fsMounted = false;
 
 void initFS()
@@ -49,7 +49,6 @@ void initFS()
   fsMounted = SPIFFS.begin();
   if (fsMounted) {
     Serial.println("Mounted file system");
-    drd.detectDoubleReset(fsMounted);
     if (SPIFFS.exists("/config.json")) {
       //file exists, reading and loading
       Serial.println("reading config file");
@@ -84,7 +83,7 @@ void initFS()
   }
   //end read
   custom_mqtt_server = new WiFiManagerParameter("mqtt_server", "MQTT Server", mqttServer, 40);
-  custom_mqtt_port = new WiFiManagerParameter("mqtt_port", "MQTT Port", mqttPort, 5);
+  custom_mqtt_port = new WiFiManagerParameter("mqtt_port", "MQTT Port", mqttPort, 6);
   custom_subscription = new WiFiManagerParameter("subscription", "MQTT Subscription", subscription, 60);
 }
 
@@ -120,12 +119,12 @@ void saveConfig() {
       json.printTo(configFile);
       configFile.close();
     }
-    drd.stop();
   } else {
     Serial.println("failed to mount FS");
   }
   //end save
   shouldSaveConfig = false;
+  drd.stop();
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -165,7 +164,7 @@ void wifiBegin() {
   //reset settings - for testing
   //wifiManager.resetSettings();
   WiFi.printDiag(Serial); //Remove this line if you do not want to see WiFi password printed
-  bool doubleReset = drd.doubleResetDetected();
+  bool doubleReset = drd.detectDoubleReset();
   bool noSSID = WiFi.SSID()=="";
   if (doubleReset || noSSID) {
     oled.clear();
